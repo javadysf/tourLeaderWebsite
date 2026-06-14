@@ -1,0 +1,8 @@
+{
+  "platform": "next",
+  "app": "tourleader-web",
+  "port": 3000,
+  "build": {
+    "location": "iran"
+  }
+}

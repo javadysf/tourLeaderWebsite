@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(pnpm --version)",
+      "Bash(npm install *)",
+      "Read(//mnt/c/project/**)",
+      "Bash(pnpm install *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

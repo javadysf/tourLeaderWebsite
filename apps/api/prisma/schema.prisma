@@ -1,0 +1,870 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  SUSPENDED
+}
+
+enum Role {
+  SUPER_ADMIN
+  AGENCY_ADMIN
+  AGENCY_STAFF
+  TOUR_GUIDE
+  ACCOUNTANT
+  CONTENT_MANAGER
+  SUPPORT_AGENT
+  CUSTOMER
+  AFFILIATE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum DocumentType {
+  PASSPORT
+  NATIONAL_ID
+  VISA
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum TourStatus {
+  DRAFT
+  PUBLISHED
+  FINISHED
+  CANCELLED
+  FULL
+}
+
+enum TourType {
+  DOMESTIC
+  INTERNATIONAL
+}
+
+enum TourDifficulty {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
+
+enum TourCategory {
+  DOMESTIC
+  INTERNATIONAL
+  ADVENTURE
+  NATURE
+  CULTURAL
+  PILGRIMAGE
+  LUXURY
+  FAMILY
+  EDUCATIONAL
+  RECREATIONAL
+}
+
+enum TransportationType {
+  FLIGHT
+  TRAIN
+  BUS
+  SHIP
+  VAN
+}
+
+enum TransportationClass {
+  ECONOMY
+  BUSINESS
+  FIRST
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  GATEWAY
+  WALLET
+  INSTALLMENT
+}
+
+enum PaymentGateway {
+  ZARINPAL
+  MELLAT
+  PARSIAN
+  IDPAY
+}
+
+enum PaymentType {
+  PAYMENT
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+  REFUND
+  CASHBACK
+  BONUS
+}
+
+enum LoyaltySource {
+  BOOKING
+  REVIEW
+  REFERRAL
+  BONUS
+}
+
+enum LoyaltyType {
+  EARN
+  REDEEM
+  EXPIRE
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  IN_APP
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SenderType {
+  USER
+  STAFF
+}
+
+enum CampaignType {
+  DISCOUNT
+  CASHBACK
+  GIFT_POINTS
+  FREE_SERVICE
+}
+
+enum ServiceType {
+  INCLUDED
+  EXCLUDED
+  OPTIONAL
+}
+
+enum GuideRole {
+  LEAD
+  ASSISTANT
+}
+
+enum GuideStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// ─────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id                 String     @id @default(uuid())
+  mobile             String?    @unique
+  email              String?    @unique
+  passwordHash       String?
+  firstName          String
+  lastName           String
+  nationalId         String?    @unique
+  birthDate          DateTime?
+  gender             Gender?
+  avatar             String?
+  walletBalance      Decimal    @default(0) @db.Decimal(15, 2)
+  loyaltyPoints      Int        @default(0)
+  emailVerifiedAt    DateTime?
+  mobileVerifiedAt   DateTime?
+  twoFaSecret        String?
+  twoFaEnabled       Boolean    @default(false)
+  status             UserStatus @default(ACTIVE)
+  preferredLanguage  String     @default("fa")
+  role               Role       @default(CUSTOMER)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  deletedAt          DateTime?
+
+  documents          UserDocument[]
+  socialAccounts     UserSocialAccount[]
+  bookings           Booking[]
+  reviews            Review[]
+  walletTransactions WalletTransaction[]
+  loyaltyTransactions LoyaltyTransaction[]
+  notifications      Notification[]
+  tickets            Ticket[]
+  activityLogs       ActivityLog[]
+  guide              Guide?
+  affiliate          Affiliate?
+  discountUsages     UserDiscountUsage[]
+  refreshTokens      RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model UserDocument {
+  id             String         @id @default(uuid())
+  userId         String
+  type           DocumentType
+  documentNumber String
+  issueDate      DateTime?
+  expireDate     DateTime?
+  issuedCountry  String?
+  filePath       String
+  status         DocumentStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_documents")
+}
+
+model UserSocialAccount {
+  id            String   @id @default(uuid())
+  userId        String
+  provider      String
+  providerId    String
+  providerToken String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("user_social_accounts")
+}
+
+// ─────────────────────────────────────────────
+// GUIDES
+// ─────────────────────────────────────────────
+
+model Guide {
+  id                String      @id @default(uuid())
+  userId            String      @unique
+  licenseNumber     String      @unique
+  licenseExpireDate DateTime
+  bio               String?
+  experienceYears   Int         @default(0)
+  rating            Decimal     @default(0) @db.Decimal(3, 2)
+  languages         String[]
+  specializations   String[]
+  profilePhoto      String?
+  status            GuideStatus @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tourGuides TourGuide[]
+
+  @@map("guides")
+}
+
+// ─────────────────────────────────────────────
+// TOURS
+// ─────────────────────────────────────────────
+
+model Tour {
+  id                     String         @id @default(uuid())
+  title                  String
+  slug                   String         @unique
+  description            String
+  shortDescription       String?
+  coverImage             String?
+  status                 TourStatus     @default(DRAFT)
+  type                   TourType       @default(DOMESTIC)
+  category               TourCategory
+  difficulty             TourDifficulty @default(EASY)
+  departureDate          DateTime
+  returnDate             DateTime
+  durationDays           Int
+  durationNights         Int
+  originCity             String
+  destinationCity        String
+  destinationCountry     String
+  maxCapacity            Int
+  currentCapacity        Int            @default(0)
+  basePrice              Decimal        @db.Decimal(15, 2)
+  pricePerChild          Decimal?       @db.Decimal(15, 2)
+  priceSingleRoom        Decimal?       @db.Decimal(15, 2)
+  currency               String         @default("IRR")
+  isInstallmentAvailable Boolean        @default(false)
+  installmentMonths      Int?
+  cancellationPolicy     String?
+  termsConditions        String?
+  requiredDocuments      String?
+  climateInfo            String?
+  minAge                 Int?
+  maxAge                 Int?
+  isFeatured             Boolean        @default(false)
+  viewCount              Int            @default(0)
+  metaTitle              String?
+  metaDescription        String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
+
+  media           TourMedia[]
+  itinerary       TourItinerary[]
+  services        TourService[]
+  guides          TourGuide[]
+  hotels          TourHotel[]
+  transportations TourTransportation[]
+  bookings        Booking[]
+  reviews         Review[]
+
+  @@map("tours")
+}
+
+model TourMedia {
+  id           String   @id @default(uuid())
+  tourId       String
+  type         String
+  url          String
+  thumbnailUrl String?
+  caption      String?
+  sortOrder    Int      @default(0)
+  isCover      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@map("tour_media")
+}
+
+model TourItinerary {
+  id              String   @id @default(uuid())
+  tourId          String
+  dayNumber       Int
+  title           String
+  description     String
+  accommodation   String?
+  meals           String[]
+  activities      String?
+  transportationType String?
+  location        String?
+  time            String?
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@map("tour_itinerary")
+}
+
+model TourService {
+  id          String      @id @default(uuid())
+  tourId      String
+  serviceType ServiceType
+  title       String
+  description String?
+  icon        String?
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@map("tour_services")
+}
+
+model TourGuide {
+  id        String    @id @default(uuid())
+  tourId    String
+  guideId   String
+  role      GuideRole @default(LEAD)
+  isPrimary Boolean   @default(false)
+
+  tour  Tour  @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@unique([tourId, guideId])
+  @@map("tour_guides")
+}
+
+model Hotel {
+  id          String   @id @default(uuid())
+  name        String
+  stars       Int      @default(3)
+  city        String
+  country     String
+  address     String?
+  phone       String?
+  latitude    Decimal? @db.Decimal(10, 8)
+  longitude   Decimal? @db.Decimal(11, 8)
+  images      String[]
+  amenities   String[]
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tourHotels TourHotel[]
+
+  @@map("hotels")
+}
+
+model TourHotel {
+  id           String   @id @default(uuid())
+  tourId       String
+  hotelId      String
+  checkInDate  DateTime
+  checkOutDate DateTime
+  roomType     String?
+  nights       Int
+  sortOrder    Int      @default(0)
+
+  tour  Tour  @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  hotel Hotel @relation(fields: [hotelId], references: [id])
+
+  @@map("tour_hotels")
+}
+
+model TourTransportation {
+  id             String              @id @default(uuid())
+  tourId         String
+  type           TransportationType
+  company        String?
+  departureTime  DateTime
+  arrivalTime    DateTime
+  fromLocation   String
+  toLocation     String
+  class          TransportationClass @default(ECONOMY)
+  details        String?
+  sortOrder      Int                 @default(0)
+
+  tour Tour @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  @@map("tour_transportations")
+}
+
+// ─────────────────────────────────────────────
+// BOOKINGS & PAYMENTS
+// ─────────────────────────────────────────────
+
+model Booking {
+  id                 String        @id @default(uuid())
+  userId             String
+  tourId             String
+  bookingCode        String        @unique @default(uuid())
+  status             BookingStatus @default(PENDING)
+  passengersCount    Int
+  adultsCount        Int
+  childrenCount      Int           @default(0)
+  totalPrice         Decimal       @db.Decimal(15, 2)
+  paidAmount         Decimal       @default(0) @db.Decimal(15, 2)
+  discountAmount     Decimal       @default(0) @db.Decimal(15, 2)
+  walletUsed         Decimal       @default(0) @db.Decimal(15, 2)
+  paymentStatus      PaymentStatus @default(UNPAID)
+  paymentMethod      PaymentMethod?
+  cancellationReason String?
+  cancelledAt        DateTime?
+  cancellationFee    Decimal       @default(0) @db.Decimal(15, 2)
+  refundAmount       Decimal       @default(0) @db.Decimal(15, 2)
+  refundStatus       String?
+  voucherNumber      String?
+  invoiceNumber      String?
+  couponId           String?
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user               User               @relation(fields: [userId], references: [id])
+  tour               Tour               @relation(fields: [tourId], references: [id])
+  coupon             Coupon?            @relation(fields: [couponId], references: [id])
+  passengers         BookingPassenger[]
+  payments           Payment[]
+  installmentPlan    InstallmentPlan?
+  discountUsages     UserDiscountUsage[]
+  affiliateConversions AffiliateConversion[]
+
+  @@map("bookings")
+}
+
+model BookingPassenger {
+  id                   String   @id @default(uuid())
+  bookingId            String
+  firstName            String
+  lastName             String
+  nationalId           String?
+  passportNumber       String?
+  birthDate            DateTime?
+  gender               Gender?
+  nationality          String?
+  passportExpireDate   DateTime?
+  isLeadPassenger      Boolean  @default(false)
+  roomType             String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("booking_passengers")
+}
+
+model Payment {
+  id                  String            @id @default(uuid())
+  bookingId           String
+  userId              String
+  amount              Decimal           @db.Decimal(15, 2)
+  currency            String            @default("IRR")
+  type                PaymentType       @default(PAYMENT)
+  method              PaymentMethod
+  gateway             PaymentGateway?
+  gatewayTransactionId String?
+  status              TransactionStatus @default(PENDING)
+  paidAt              DateTime?
+  metadata            Json?
+  createdAt           DateTime          @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model InstallmentPlan {
+  id                String   @id @default(uuid())
+  bookingId         String   @unique
+  totalAmount       Decimal  @db.Decimal(15, 2)
+  downPayment       Decimal  @db.Decimal(15, 2)
+  installmentsCount Int
+  installmentAmount Decimal  @db.Decimal(15, 2)
+  createdAt         DateTime @default(now())
+
+  booking      Booking              @relation(fields: [bookingId], references: [id])
+  installments InstallmentPayment[]
+
+  @@map("installment_plans")
+}
+
+model InstallmentPayment {
+  id                 String            @id @default(uuid())
+  planId             String
+  installmentNumber  Int
+  dueDate            DateTime
+  paidAt             DateTime?
+  amount             Decimal           @db.Decimal(15, 2)
+  status             InstallmentStatus @default(PENDING)
+
+  plan InstallmentPlan @relation(fields: [planId], references: [id])
+
+  @@map("installment_payments")
+}
+
+// ─────────────────────────────────────────────
+// WALLET & LOYALTY
+// ─────────────────────────────────────────────
+
+model WalletTransaction {
+  id            String                @id @default(uuid())
+  userId        String
+  type          WalletTransactionType
+  amount        Decimal               @db.Decimal(15, 2)
+  balanceBefore Decimal               @db.Decimal(15, 2)
+  balanceAfter  Decimal               @db.Decimal(15, 2)
+  description   String?
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model LoyaltyTransaction {
+  id          String        @id @default(uuid())
+  userId      String
+  points      Int
+  type        LoyaltyType
+  source      LoyaltySource
+  referenceId String?
+  description String?
+  expireAt    DateTime?
+  createdAt   DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("loyalty_transactions")
+}
+
+// ─────────────────────────────────────────────
+// COUPONS & MARKETING
+// ─────────────────────────────────────────────
+
+model Coupon {
+  id                    String     @id @default(uuid())
+  code                  String     @unique
+  type                  CouponType
+  value                 Decimal    @db.Decimal(10, 2)
+  maxDiscount           Decimal?   @db.Decimal(15, 2)
+  minOrderAmount        Decimal?   @db.Decimal(15, 2)
+  usageLimit            Int?
+  usedCount             Int        @default(0)
+  userLimitPerCode      Int        @default(1)
+  validFrom             DateTime
+  validTo               DateTime
+  applicableTourIds     String[]
+  applicableCategoryIds String[]
+  isActive              Boolean    @default(true)
+  createdAt             DateTime   @default(now())
+
+  bookings      Booking[]
+  discountUsages UserDiscountUsage[]
+
+  @@map("coupons")
+}
+
+model UserDiscountUsage {
+  id         String   @id @default(uuid())
+  userId     String
+  couponId   String
+  bookingId  String
+  usedAt     DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  coupon  Coupon  @relation(fields: [couponId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("user_discount_usages")
+}
+
+model Campaign {
+  id         String       @id @default(uuid())
+  name       String
+  type       CampaignType
+  conditions Json?
+  reward     Json?
+  validFrom  DateTime
+  validTo    DateTime
+  status     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+
+  @@map("campaigns")
+}
+
+model Affiliate {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  referralCode    String   @unique
+  commissionRate  Decimal  @db.Decimal(5, 2)
+  totalEarnings   Decimal  @default(0) @db.Decimal(15, 2)
+  pendingEarnings Decimal  @default(0) @db.Decimal(15, 2)
+  status          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  user        User                  @relation(fields: [userId], references: [id])
+  conversions AffiliateConversion[]
+
+  @@map("affiliates")
+}
+
+model AffiliateConversion {
+  id               String   @id @default(uuid())
+  affiliateId      String
+  bookingId        String
+  commissionAmount Decimal  @db.Decimal(15, 2)
+  status           Boolean  @default(false)
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+
+  @@map("affiliate_conversions")
+}
+
+// ─────────────────────────────────────────────
+// REVIEWS
+// ─────────────────────────────────────────────
+
+model Review {
+  id                    String       @id @default(uuid())
+  tourId                String
+  userId                String
+  bookingId             String?
+  rating                Int
+  title                 String?
+  body                  String
+  guideRating           Int?
+  accommodationRating   Int?
+  transportationRating  Int?
+  valueRating           Int?
+  status                ReviewStatus @default(PENDING)
+  isFeatured            Boolean      @default(false)
+  adminReply            String?
+  adminRepliedAt        DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  tour  Tour          @relation(fields: [tourId], references: [id])
+  user  User          @relation(fields: [userId], references: [id])
+  media ReviewMedia[]
+
+  @@map("reviews")
+}
+
+model ReviewMedia {
+  id           String   @id @default(uuid())
+  reviewId     String
+  type         String
+  url          String
+  thumbnailUrl String?
+  createdAt    DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@map("review_media")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS & SUPPORT
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  data      Json?
+  channel   NotificationChannel
+  isRead    Boolean             @default(false)
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model Ticket {
+  id           String         @id @default(uuid())
+  userId       String
+  bookingId    String?
+  subject      String
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  department   String?
+  createdAt    DateTime       @default(now())
+  resolvedAt   DateTime?
+
+  user     User            @relation(fields: [userId], references: [id])
+  messages TicketMessage[]
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id          String     @id @default(uuid())
+  ticketId    String
+  senderId    String
+  senderType  SenderType
+  message     String
+  attachments String[]
+  createdAt   DateTime   @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT & SETTINGS
+// ─────────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  modelType  String?
+  modelId    String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  group     String?
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
